@@ -1,9 +1,12 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: pipeline-maven-app-final
+  name: pipeline-maven-app
 spec:
   params:
+    - default: 'git@github.com:waeshalaby/tops-argo-cd.git'
+      name: GITOPS_REPO_URL
+      type: string
     - description: Truncated Git Commit ID
       name: truncated-sha
       type: string
@@ -133,6 +136,31 @@ spec:
       workspaces:
         - name: source
           workspace: workspace
+    - name: update-gitops-repo
+      params:
+        - name: SCRIPT
+          value: 'yq -i ''.images[] |= select(.name == "$(params.APP_NAME)").newTag = "$(params.truncated-sha)"'' gitrepo/overlays/dev/kustomization.yaml'
+        - name: GIT_USER_NAME
+          value: waeshalaby
+        - name: GIT_USER_EMAIL
+          value: waeshalaby@gmail.com
+        - name: GIT_CLONE_SCRIPT
+          value: git clone $(params.GITOPS_REPO_URL) gitrepo
+        - name: GIT_PUSH_SCRIPT
+          value: |-
+            cd gitrepo
+            git commit -am "Updated Dev image tag to $(params.truncated-sha)"
+            git push
+      runAfter:
+        - build-image
+      taskRef:
+        kind: Task
+        name: gitops-update
+      workspaces:
+        - name: source
+          workspace: workspace
+        - name: ssh-directory
+          workspace: ssh-directory
   workspaces:
     - name: workspace
     - name: ssh-directory
