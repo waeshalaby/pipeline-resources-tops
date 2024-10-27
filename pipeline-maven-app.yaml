@@ -1,0 +1,140 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: pipeline-maven-app-final
+spec:
+  params:
+    - description: Truncated Git Commit ID
+      name: truncated-sha
+      type: string
+    - default: simple-springboot-app
+      name: CONTEXT_DIR
+      type: string
+    - default: app-git
+      name: APP_NAME
+      type: string
+    - default: 'git@github.com:waeshalaby/simple-springboot-app.git'
+      name: GIT_REPO
+      type: string
+    - default: master
+      name: GIT_REVISION
+      type: string
+    - default: 'image-registry.openshift-image-registry.svc:5000/gk-knowledge-dev/app-git'
+      name: IMAGE_NAME
+      type: string
+    - default: .
+      name: PATH_CONTEXT
+      type: string
+    - default: openjdk-17-ubi8
+      name: VERSION
+      type: string
+    - default:
+        - package
+      description: maven goals to run
+      name: GOALS
+      type: array
+  tasks:
+    - name: create-resources
+      params:
+        - name: SCRIPT
+          value: |
+            #!/bin/bash
+            cat << 'EOF' | oc apply -f -
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: $(params.APP_NAME)-mvn-cache-pvc
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 2Gi
+              storageClassName: ocs-storagecluster-cephfs
+              volumeMode: Filesystem
+            EOF
+
+            # Create the second PVC
+            cat << 'EOF' | oc apply -f -
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: $(params.APP_NAME)-source-pvc
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 2Gi
+              storageClassName: ocs-storagecluster-cephfs
+              volumeMode: Filesystem
+
+            EOF
+            # end of this task  
+      taskRef:
+        kind: Task
+        name: openshift-client
+    - name: fetch-repository
+      params:
+        - name: url
+          value: $(params.GIT_REPO)
+        - name: revision
+          value: $(params.GIT_REVISION)
+        - name: subdirectory
+          value: ''
+        - name: deleteExisting
+          value: 'true'
+      runAfter:
+        - create-resources
+      taskRef:
+        kind: Task
+        name: git-fetch
+      workspaces:
+        - name: output
+          workspace: workspace
+        - name: ssh-directory
+          workspace: ssh-directory
+    - name: code-build
+      params:
+        - name: CONTEXT_DIR
+          value: $(params.CONTEXT_DIR)
+        - name: workingDir
+          value: $(workspaces.source.path)/$(params.APP_NAME)
+        - name: MAVEN_IMAGE
+          value: 'registry.access.redhat.com/ubi8/openjdk-17:1.17-1.1696520325'
+        - name: GOALS
+          value:
+            - $(params.GOALS)
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: Task
+        name: maven-task
+      workspaces:
+        - name: source
+          workspace: workspace
+        - name: maven-settings
+          workspace: maven-settings
+        - name: maven-cache
+          workspace: maven-cache
+    - name: build-image
+      params:
+        - name: APP_DIR
+          value: $(params.CONTEXT_DIR)
+        - name: IMAGE
+          value: 'image-registry.openshift-image-registry.svc:5000/gk-knowledge-dev/$(params.APP_NAME):$(params.truncated-sha)'
+        - name: workingDir
+          value: $(workspaces.source.path)/$(params.APP_NAME)/
+      runAfter:
+        - code-build
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: workspace
+  workspaces:
+    - name: workspace
+    - name: ssh-directory
+    - name: maven-settings
+    - name: maven-cache
