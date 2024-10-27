@@ -125,7 +125,7 @@ spec:
         - name: APP_DIR
           value: $(params.CONTEXT_DIR)
         - name: IMAGE
-          value: 'image-registry.openshift-image-registry.svc:5000/gk-knowledge-dev/$(params.APP_NAME):$(params.truncated-sha)'
+          value: 'image-registry.openshift-image-registry.svc:5000/easd-tops-dev/$(params.APP_NAME):$(params.truncated-sha)'
         - name: workingDir
           value: $(workspaces.source.path)/$(params.APP_NAME)/
       runAfter:
