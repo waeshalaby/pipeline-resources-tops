@@ -1,0 +1,14 @@
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: appmaven-trigger-binding
+spec:
+  params:
+    - name: repo-url
+      value: $(body.repository.ssh_url)
+    - name: repo-name
+      value: $(body.repository.name)
+    - name: branch-name
+      value: $(extensions.branch-name)
+    - name: truncated-sha
+      value: $(extensions.truncated-sha)

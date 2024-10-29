@@ -1,0 +1,25 @@
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: appmaven-event-listener
+spec:
+  namespaceSelector: {}
+  resources: {}
+  serviceAccountName: pipeline
+  triggers:
+    - bindings:
+        - kind: TriggerBinding
+          ref: appmaven-trigger-binding
+      interceptors:
+        - params:
+            - name: overlays
+              value:
+                - expression: 'body.head_commit.id.truncate(7)'
+                  key: truncated-sha
+                - expression: 'body.ref.split(''/'')[2]'
+                  key: branch-name
+          ref:
+            kind: ClusterInterceptor
+            name: cel
+      template:
+        ref: appmaven-trigger-template

@@ -1,0 +1,60 @@
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: appmaven-trigger-template
+spec:
+  params:
+    - name: repo-url
+    - name: repo-name
+    - name: branch-name
+    - name: truncated-sha
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        annotations:
+          pipeline.openshift.io/started-by: admin
+        generateName: pipeline-maven-app-
+        labels:
+          rht-gitops.com/janus-argocd: easd-tops-pipeline-dev
+          tekton.dev/pipeline: pipeline-maven-app
+      spec:
+        params:
+          - name: GITOPS_REPO_URL
+            value: 'git@github.com:waeshalaby/tops-argo-cd.git'
+          - name: truncated-sha
+            value: $(tt.params.truncated-sha)
+          - name: CONTEXT_DIR
+            value: simple-springboot-app
+          - name: APP_NAME
+            value: app-git
+          - name: GIT_REPO
+            value: $(tt.params.repo-url)
+          - name: GIT_REVISION
+            value: $(tt.params.branch-name)
+          - name: IMAGE_NAME
+            value: 'image-registry.openshift-image-registry.svc:5000/gk-knowledge-dev/app-git'
+          - name: PATH_CONTEXT
+            value: .
+          - name: VERSION
+            value: openjdk-17-ubi8
+          - name: GOALS
+            value:
+              - clean
+              - package
+              - '-DskipTests'
+        pipelineRef:
+          name: pipeline-maven-app
+        workspaces:
+          - name: workspace
+            persistentVolumeClaim:
+              claimName: app-git-source-pvc
+          - name: ssh-directory
+            secret:
+              secretName: github-ssh-key
+          - configMap:
+              name: maven-settings
+            name: maven-settings
+          - name: maven-cache
+            persistentVolumeClaim:
+              claimName: app-git-mvn-cache-pvc

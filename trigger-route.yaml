@@ -1,0 +1,15 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: el-appmaven-event-listener
+  labels:
+    app.kubernetes.io/managed-by: EventListener
+    app.kubernetes.io/part-of: Triggers
+    eventlistener: appmaven-event-listener
+spec:
+  to:
+    kind: Service
+    name: el-appmaven-event-listener
+    weight: 100
+  port:
+    targetPort: http-listener
